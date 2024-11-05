@@ -27,23 +27,11 @@ class Adjuster:
             return None
 
         (matches, H, status) = M
+        result = image
         result = cv2.warpPerspective(image, H, (image.shape[1] + image.shape[1], image.shape[0] + image.shape[0]))
 
         result = result[int(self.edge[1]):int(image.shape[0] - self.edge[1]),
                  int(self.edge[0]):int(image.shape[1] - self.edge[0])]
-
-        cv2.namedWindow("result", cv2.WINDOW_NORMAL)
-        cv2.imshow("result", result)
-
-        start_img = self.start_image[int(self.edge[1]):int(image.shape[0] - self.edge[1]),
-                    int(self.edge[0]):int(image.shape[1] - self.edge[0])]
-
-        sub_img = cv2.absdiff(result, start_img)
-
-        cv2.namedWindow("start_img", cv2.WINDOW_NORMAL)
-        cv2.imshow("start_img", start_img)
-        cv2.namedWindow("sub_img", cv2.WINDOW_NORMAL)
-        cv2.imshow("sub_img", sub_img)
 
         return result
 

@@ -311,7 +311,7 @@ def parse_args():
 if __name__ == '__main__':
     # all train
     image = np.zeros([1920, 1080, 3])
-    cv2.namedWindow("temp", cv2.WINDOW_NORMAL)
+    # cv2.namedWindow("temp", cv2.WINDOW_NORMAL)
     args = parse_args()
     display = args.display
     phase = args.phase

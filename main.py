@@ -7,7 +7,7 @@ import adjuster
 import tensorflow
 
 def start_detect():
-    path = "IMG_4550.MOV"
+    path = "IMG_4550_2.MOV"
     capture = cv2.VideoCapture(path)
     capture.set(cv2.CAP_PROP_POS_FRAMES, 200)
     fourcc = cv2.VideoWriter_fourcc(*'XVID')
@@ -17,9 +17,9 @@ def start_detect():
 
     detector = knnDetector(500, 400, 10)
     cv2.destroyAllWindows()
-    cv2.namedWindow("frame", cv2.WINDOW_NORMAL)
-    cv2.namedWindow("history", cv2.WINDOW_NORMAL)
-    cv2.namedWindow("mask", cv2.WINDOW_NORMAL)
+    # cv2.namedWindow("frame", cv2.WINDOW_NORMAL)
+    # cv2.namedWindow("history", cv2.WINDOW_NORMAL)
+    # cv2.namedWindow("mask", cv2.WINDOW_NORMAL)
 
     flag = False
 
@@ -64,10 +64,10 @@ def start_detect():
             cv2.rectangle(frame, (bbox[0], bbox[1]), (bbox[2], bbox[3]), (0, 0, 255), 6)
             cv2.putText(frame, str(bbox[4]), (bbox[0], bbox[1]), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255))
 
-        # # out.write(frame)
+        out.write(frame)
         #
         # cv2.imshow("mask", mask)
-        # cv2.imshow("frame", frame)
+        cv2.imshow("frame", frame)
         if flag:
             if cv2.waitKey(0) == 27:
                 flag = False
