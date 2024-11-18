@@ -19,10 +19,9 @@ fps = int(camera.get(cv2.CAP_PROP_FPS))
 print("width:", width, "height:", height)
 
 # 导出视频
-fourcc = cv2.VideoWriter_fourcc(*'mp4v')
 out = cv2.VideoWriter(
     "./video/output1.avi",
-    fourcc, fps, (width, height), isColor=True
+    cv2.VideoWriter_fourcc(*'mp4v'), fps, (width, height), isColor=True
 )
 
 grabbed, frame_lwpCV = camera.read()
