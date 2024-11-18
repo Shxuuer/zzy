@@ -1,3 +1,2 @@
-*.mp4
-*.MOV
 __pycache__/
+venv/
