@@ -1,9 +1,11 @@
 import cv2
 import numpy as np
 from collections import deque
+import time
+import utils
 
 colour = ((0, 205, 205), (154, 250, 0), (34, 34, 178), (211, 0, 148), (255, 118, 72), (137, 137, 139))  # 定义矩形颜色
-video = "./video/vtest3.mp4"
+video = "./video/vtest2.mp4"
 camera = cv2.VideoCapture(video)
 # 参数0表示第一个摄像头
 # 判断视频是否打开
@@ -11,6 +13,7 @@ if camera.isOpened():
     print("摄像头成功打开")
 else:
     print("摄像头未打开")
+    exit(0)
 
 # 查看视频相关信息
 width = int(camera.get(cv2.CAP_PROP_FRAME_WIDTH))
@@ -29,16 +32,14 @@ gray_lwpCV = cv2.cvtColor(frame_lwpCV, cv2.COLOR_BGR2GRAY)
 first_f = np.fft.fft2(gray_lwpCV)
 
 last_gray = gray_lwpCV
-times = 0
-time_list = []
 
 pts = [deque(maxlen=30) for _ in range(99999)]
+last_time = 0
 
-fgbg = cv2.createBackgroundSubtractorKNN(history=7, dist2Threshold=1000, detectShadows=False)  # 混合高斯背景建模算法
+photo_buffer = []
 
 while True:
     # 读取视频流
-    times += 1
     grabbed, frame_lwpCV = camera.read()
     if grabbed is False:
         print("读取结束")
@@ -124,8 +125,13 @@ while True:
                 y = 10 if y1 < 10 else y1
                 cv2.putText(frame_lwpCV, "object", (x1, y), cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 255, 0), 2)
                 cv2.line(frame_lwpCV, (pts[count][-2]), (pts[count][-1]), (255, 0, 0), 4)
-                print("警报！高空抛物出现,出现的帧数为:", times)
-                time_list.append(times)
+                if time.time() - last_time > 5:
+                    print("object detected")
+                    last_time = time.time()
+                    # 将当前帧保存到photo_buffer
+                    photo_buffer.append(utils.frame2base64(frame_lwpCV))
+                    utils.post(1, 1, 0.9, photo_buffer)
+                    photo_buffer = []
                 out.write(frame_lwpCV)
 
     cv2.imshow("contours", frame_lwpCV)
