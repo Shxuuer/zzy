@@ -4,6 +4,7 @@ from collections import deque
 import time
 import utils
 import math
+import threading
 
 colour = ((0, 205, 205), (154, 250, 0), (34, 34, 178), (211, 0, 148), (255, 118, 72), (137, 137, 139))  # 定义矩形颜色
 video = "./video/vtest2.mp4"
@@ -39,7 +40,7 @@ last_gray = gray_lwpCV
 
 pts = [deque(maxlen=30) for _ in range(99999)]
 last_time = 0
-
+last_pict_time = 0
 
 photo_buffer = []
 
@@ -140,7 +141,10 @@ while True:
                 cv2.rectangle(frame_lwpCV, (x1, y1), (x1 + w, y1 + h), colour[count % 6], 3)
                 y = 10 if y1 < 10 else y1
                 cv2.putText(frame_lwpCV, "object", (x1, y), cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 255, 0), 2)
-                # cv2.line(frame_lwpCV, (pts[count][-2]), (pts[count][-1]), (255, 0, 0), 4)
+                # 将当前帧保存到photo_buffer
+                if time.time() - last_pict_time > 1 and len(photo_buffer) < 3:
+                    photo_buffer.append(utils.frame2base64(frame_lwpCV))
+                    last_pict_time = time.time()
                 if time.time() - last_time > 5:
                     #计算层数，由于仰视角度，需要修正单楼层高度
                     adjustment_factor = 1 - (y1 / height) * 0.3
@@ -148,8 +152,6 @@ while True:
                     object_floor = total_floors - math.floor(y1 / adjusted_floor_height)
                     print(f"object detected at {object_floor} floor.")
                     last_time = time.time()
-                    # 将当前帧保存到photo_buffer
-                    photo_buffer.append(utils.frame2base64(frame_lwpCV))
                     utils.post(object_floor, 1, probability, photo_buffer)
                     photo_buffer = []
                 out.write(frame_lwpCV)

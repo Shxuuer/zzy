@@ -1,7 +1,7 @@
 import base64
 import requests
 import cv2
-# 
+
 def post(floor, level, probability, photos):
     BASE_URL = "http://localhost:3000"
     MECHINE_NAME = "测试"
@@ -14,7 +14,7 @@ def post(floor, level, probability, photos):
         "photos": photos
     }
     response = requests.post(url, json=body)
-    print(response.text)
+    # print(response.text)
 
 def frame2base64(frame):
     # 将图片转为base64，格式"data:image/png;base64,xxxxxxx"
