@@ -1,4 +1,6 @@
+import RPi.GPIO as GPIO
 import cv2
+from picamera2 import Picamera2
 import numpy as np
 from collections import deque
 import time
@@ -8,8 +10,38 @@ import threading
 
 colour = ((0, 205, 205), (154, 250, 0), (34, 34, 178), (211, 0, 148), (255, 118, 72), (137, 137, 139))  # 定义矩形颜色
 video = "./video/vtest2.mp4"
-camera = cv2.VideoCapture(video)
-# 参数0表示第一个摄像头
+camera = Picamera2()
+camera.start()
+time.sleep(1)
+thread_running = False
+
+
+BUZZER_PIN = 24
+AMPLITUDE = 500
+BASE = 1000
+DURATION = 5
+STEPS = 1000
+GPIO.setmode(GPIO.BCM)
+GPIO.setup(BUZZER_PIN, GPIO.OUT)
+
+
+def speak():
+    global thread_running
+    thread_running = True
+    pwm = GPIO.PWM(BUZZER_PIN, 1)
+    pwm.start(50)
+
+    for i in range(STEPS):
+        t = i / STEPS * DURATION
+        frequency = BASE + AMPLITUDE * math.sin(60 * math.pi * t / DURATION)
+        pwm.ChangeFrequency(max(1, int(frequency)))
+        time.sleep(DURATION / STEPS)
+    
+    pwm.stop()
+    thread_running = False
+        # GPIO.cleanup()
+
+"""
 # 判断视频是否打开
 if camera.isOpened():
     print("摄像头成功打开")
@@ -31,26 +63,35 @@ out = cv2.VideoWriter(
     "./video/output1.avi",
     cv2.VideoWriter_fourcc(*'mp4v'), fps, (width, height), isColor=True
 )
+"""
+width, height = 640, 480
 
-grabbed, frame_lwpCV = camera.read()
+# grabbed, frame_lwpCV = camera.read()
+frame_lwpCV = camera.capture_array("main")
+
+frame_lwpCV = cv2.cvtColor(frame_lwpCV, cv2.COLOR_RGB2BGR)
+
 gray_lwpCV = cv2.cvtColor(frame_lwpCV, cv2.COLOR_BGR2GRAY)
+
 first_f = np.fft.fft2(gray_lwpCV)
 
 last_gray = gray_lwpCV
 
 pts = [deque(maxlen=30) for _ in range(99999)]
+fgbg = cv2.createBackgroundSubtractorKNN(history=7, dist2Threshold=1000, detectShadows=False)
+
 last_time = 0
-last_pict_time = 0
+
+pause_detection = False
+pause_end_time = 0
 
 photo_buffer = []
 
+
 while True:
     # 读取视频流
-    grabbed, frame_lwpCV = camera.read()
-    if grabbed is False:
-        print("读取结束")
-        break
-
+    frame_lwpCV = camera.capture_array("main")
+    frame_lwpCV = cv2.cvtColor(frame_lwpCV, cv2.COLOR_RGB2BGR)
     cv2.imshow("raw", frame_lwpCV)
     # 图像转灰度图
     gray_lwpCV = cv2.cvtColor(frame_lwpCV, cv2.COLOR_BGR2GRAY)
@@ -85,7 +126,7 @@ while True:
 
     # 帧差法
     # 计算差分图
-    diff = abs(last_gray - imag_shift)
+    diff = np.clip(last_gray - imag_shift, 0, 255)
     last_gray = imag_shift
 
     # 差分图二值化
@@ -97,14 +138,42 @@ while True:
     diff[:, 0:col_ncare] = 0
     diff[:, -col_ncare:0] = 0
 
+    # 检查是否需要暂停检测
+    if pause_detection:
+        current_time = time.time()
+        if current_time >= pause_end_time:
+            pause_detection = False
+        else:
+            cv2.imshow("contours", frame_lwpCV)
+            # out.write(frame_lwpCV)
+            key = cv2.waitKey(1) & 0xFF
+            if key == ord("q"):
+                break
+            continue
+    
     # 显示矩形框
     diff = cv2.normalize(diff, None, 0, 255, cv2.NORM_MINMAX)
     diff = diff.astype(np.uint8)
     contours, hierarchy = cv2.findContours(diff.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+    if len(contours) > 7:
+        pause_detection = True
+        pause_end_time = time.time() + 1
+        continue
+
+    max_probability = 0
+    max_contour = None
+    max_rect = None
+    max_center = None
+    max_speed = 0
+    max_direction = 0
+    max_avg_brightness = 0
+    max_position_score = 0
+    max_object_floor = 0
+
     count = 0
+
     for cont in contours:
-        if cv2.contourArea(cont) < 2:
-            continue
         count += 1
         rect = cv2.boundingRect(cont)
         x1, y1, w, h = rect
@@ -128,7 +197,7 @@ while True:
             # 计算位置
             position_score = (y1 + h / 2) / height  # 位置越靠上，分数越高
 
-                        # 计算预警概率
+            # 计算预警概率
             probability = (
                 0.45 * (speed / 100) +
                 0.5 * (abs(direction) / 90) +
@@ -137,14 +206,17 @@ while True:
             probability = min(1.0, probability)  # 确保概率不超过1
 
             # 过滤条件
-            if speed > 5 and (direction > 45 or direction < -45) and avg_brightness > 50:
-                cv2.rectangle(frame_lwpCV, (x1, y1), (x1 + w, y1 + h), colour[count % 6], 3)
-                y = 10 if y1 < 10 else y1
-                cv2.putText(frame_lwpCV, "object", (x1, y), cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 255, 0), 2)
-                # 将当前帧保存到photo_buffer
-                if time.time() - last_pict_time > 1 and len(photo_buffer) < 3:
-                    photo_buffer.append(utils.frame2base64(frame_lwpCV))
-                    last_pict_time = time.time()
+            if speed > 0.1 and (direction > 55 or direction < -55) and avg_brightness > 30:
+                if probability > max_probability:
+                    max_probability = probability
+                    max_contour = cont
+                    max_rect = rect
+                    max_center = center
+                    max_speed = speed
+                    max_direction = direction
+                    max_avg_brightness = avg_brightness
+                    max_position_score = position_score
+                '''
                 if time.time() - last_time > 5:
                     #计算层数，由于仰视角度，需要修正单楼层高度
                     adjustment_factor = 1 - (y1 / height) * 0.3
@@ -155,9 +227,42 @@ while True:
                     utils.post(object_floor, 1, probability, photo_buffer)
                     photo_buffer = []
                 out.write(frame_lwpCV)
+                '''
+    if max_contour is not None:
+        x1, y1, w, h = max_rect
+        cv2.rectangle(frame_lwpCV, (x1, y1), (x1 + w, y1 + h), colour[count % 6], 3)
+        y = 10 if y1 < 10 else y1
+        cv2.putText(frame_lwpCV, "object", (x1, y), cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 255, 0), 2)
+        
+        if time.time() - last_time > 2.5:
+            if not thread_running:
+                max_object_floor = 0
+                print(f"object detected at {max_object_floor} floor.")
 
+                speaker = threading.Thread(target = speak)
+                speaker.start()
+
+                # speaker.join()
+
+                photo_buffer.append(utils.frame2base64(frame_lwpCV))
+                utils.post(max_object_floor, 1, max_probability, photo_buffer)
+                photo_buffer = []
+        last_time = time.time()
+        '''
+        if time.time() - last_time > 2.5:
+            # 计算层数，由于仰视角度，需要修正单楼层高度
+            adjustment_factor = 1 - (y1 / height) * 0.3
+            adjusted_floor_height = floor_height_in_pixels * adjustment_factor
+            max_object_floor = total_floors - math.floor(y1 / adjusted_floor_height)
+            print(f"object detected at {max_object_floor} floor.")
+            photo_buffer.append(utils.frame2base64(frame_lwpCV))
+            utils.post(max_object_floor, 1, max_probability, photo_buffer)
+            photo_buffer = []
+        last_time = time.time()
+        '''
+        
     cv2.imshow("contours", frame_lwpCV)
-    out.write(frame_lwpCV)
+    # out.write(frame_lwpCV)
 
     key = cv2.waitKey(1) & 0xFF
     if key == ord("q"):

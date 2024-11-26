@@ -3,7 +3,7 @@ import requests
 import cv2
 
 def post(floor, level, probability, photos):
-    BASE_URL = "http://localhost:3000"
+    BASE_URL = "http://10.129.101.252:3000"
     MECHINE_NAME = "测试"
     url = BASE_URL + "/raspberry/submit"
     body = {
